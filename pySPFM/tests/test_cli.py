@@ -48,6 +48,8 @@ class TestCLIParser:
                 "2.0",
                 "--criterion",
                 "bic",
+                "--weights",
+                "weights.nii.gz",
             ]
         )
 
@@ -57,6 +59,13 @@ class TestCLIParser:
         assert args.out_prefix == "output"
         assert args.tr == 2.0
         assert args.criterion == "bic"
+        assert args.weights == "weights.nii.gz"
+
+        # --weights is optional and defaults to None
+        args_no_weights = parser.parse_args(
+            ["sparse", "-i", "data.nii.gz", "-m", "mask.nii.gz", "-o", "output", "--tr", "2.0"]
+        )
+        assert args_no_weights.weights is None
 
     def test_stability_subcommand_args(self):
         """Test stability subcommand argument parsing."""

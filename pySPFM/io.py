@@ -122,7 +122,8 @@ def read_spatial_map(map_fn, masker):
     Raises
     ------
     ValueError
-        If the map is not a single 3D volume (or single-volume 4D image).
+        If the map is not a single 3D volume (or single-volume 4D image), or if
+        its grid (shape/affine) does not match the data the masker was fitted on.
     """
     map_img = nib.load(map_fn)
     if map_img.ndim == 4:
@@ -131,11 +132,27 @@ def read_spatial_map(map_fn, masker):
                 f"Expected a single 3D spatial map, got a 4D image with "
                 f"{map_img.shape[3]} volumes."
             )
-    elif map_img.ndim == 3:
-        # Promote a 3D map to a single-volume 4D image so the masker accepts it
-        map_img = new_img_like(map_img, np.asarray(map_img.dataobj)[..., np.newaxis])
-    else:
+    elif map_img.ndim != 3:
         raise ValueError(f"Expected a 3D (or single-volume 4D) map, got {map_img.ndim}D.")
+
+    # Reject a map in a different space than the data: nilearn would otherwise
+    # silently resample it to the data grid, applying misaligned per-voxel
+    # penalties with no error. Require the user to resample deliberately.
+    ref = getattr(masker, "mask_img_", None)
+    if ref is None:
+        ref = getattr(masker, "labels_img_", getattr(masker, "labels_img", None))
+    if ref is not None and (
+        map_img.shape[:3] != ref.shape[:3] or not np.allclose(map_img.affine, ref.affine)
+    ):
+        raise ValueError(
+            f"Weight map grid (shape {tuple(map_img.shape[:3])}) does not match the data "
+            f"grid (shape {tuple(ref.shape[:3])}); resample the weight map into the data "
+            "space before passing it."
+        )
+
+    # Promote a 3D map to a single-volume 4D image so the masker accepts it
+    if map_img.ndim == 3:
+        map_img = new_img_like(map_img, np.asarray(map_img.dataobj)[..., np.newaxis])
     return masker.transform(map_img).reshape(-1)
 
 

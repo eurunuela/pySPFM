@@ -80,6 +80,32 @@ def test_fista_weights_direction(sim_data, sim_hrf):
     assert np.sum(np.abs(est_neutral)) > np.sum(np.abs(est_more_penalty))
 
 
+def test_fista_weights_per_voxel(sim_data, sim_hrf):
+    """Weights act per voxel, not as a single global scale.
+
+    A non-uniform map (high weight on one voxel group, low on the other) must
+    move the two groups' penalties in opposite directions -- something a bug
+    that applied a single (e.g. mean) weight uniformly could not reproduce.
+    """
+    y = np.load(sim_data, allow_pickle=True)
+    hrf_matrix = np.load(sim_hrf, allow_pickle=True)
+    n_voxels = y.shape[1]
+    half = n_voxels // 2
+    assert half >= 1
+
+    est_neutral, _ = fista(hrf_matrix, y, group=0.2, use_pylops=False, max_iter=50)
+
+    weights = np.empty(n_voxels)
+    weights[:half] = 4.0  # less penalty
+    weights[half:] = 0.25  # more penalty
+    est, _ = fista(hrf_matrix, y, group=0.2, use_pylops=False, max_iter=50, weights=weights)
+
+    l1_neutral = np.sum(np.abs(est_neutral), axis=0)  # per-voxel L1 energy
+    l1_weighted = np.sum(np.abs(est), axis=0)
+    assert l1_weighted[:half].mean() > l1_neutral[:half].mean()
+    assert l1_weighted[half:].mean() < l1_neutral[half:].mean()
+
+
 def test_fista_weights_validation(sim_data, sim_hrf):
     """Invalid weights raise informative errors."""
     y = np.load(sim_data, allow_pickle=True)

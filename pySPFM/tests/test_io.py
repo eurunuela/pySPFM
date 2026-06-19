@@ -194,16 +194,42 @@ def test_read_spatial_map(testpath):
     data_masked, masker = io.read_data(data_path, mask_path)
     n_voxels = data_masked.shape[1]
 
-    # 3D weight map with a known constant inside the mask
-    weight_data = np.zeros((4, 4, 4), dtype=np.float32)
-    weight_data[1:3, 1:3, 1:3] = 2.0
+    # 3D weight map with a DISTINCT value per voxel, so a reshape/reorder bug
+    # would be caught (a constant map could not distinguish voxel order).
+    weight_data = (np.arange(4 * 4 * 4).reshape(4, 4, 4) + 1.0).astype(np.float32)
     weight_path = op.join(testpath, "test_smap_weights.nii.gz")
     nib.save(nib.Nifti1Image(weight_data, np.eye(4)), weight_path)
 
     weights = io.read_spatial_map(weight_path, masker)
 
     assert weights.shape == (n_voxels,)
-    assert np.allclose(weights, 2.0)
+    # Round-trip: inverse_transform must place each value back at its own voxel,
+    # which only holds if read_spatial_map preserved the masker's voxel order.
+    recon = np.asarray(masker.inverse_transform(weights.reshape(1, -1)).dataobj).squeeze()
+    in_mask = mask_data.astype(bool)
+    assert np.allclose(recon[in_mask], weight_data[in_mask])
+
+
+def test_read_spatial_map_rejects_grid_mismatch(testpath):
+    """read_spatial_map rejects a weight map in a different space than the data."""
+    data_4d = np.random.randn(4, 4, 4, 20).astype(np.float32)
+    data_path = op.join(testpath, "test_smapgm_data.nii.gz")
+    nib.save(nib.Nifti1Image(data_4d, np.eye(4)), data_path)
+
+    mask_data = np.zeros((4, 4, 4), dtype=np.int16)
+    mask_data[1:3, 1:3, 1:3] = 1
+    mask_path = op.join(testpath, "test_smapgm_mask.nii.gz")
+    nib.save(nib.Nifti1Image(mask_data, np.eye(4)), mask_path)
+
+    _, masker = io.read_data(data_path, mask_path)
+
+    # Same shape, different affine -> would be silently resampled by nilearn.
+    bad = nib.Nifti1Image(np.ones((4, 4, 4), np.float32), np.diag([2.0, 2.0, 2.0, 1.0]))
+    bad_path = op.join(testpath, "test_smapgm_weights.nii.gz")
+    nib.save(bad, bad_path)
+
+    with pytest.raises(ValueError, match="does not match the data"):
+        io.read_spatial_map(bad_path, masker)
 
 
 def test_read_spatial_map_rejects_4d_multivolume(testpath):

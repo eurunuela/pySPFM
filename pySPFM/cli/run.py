@@ -221,11 +221,12 @@ def _get_parser():
         dest="weights",
         default=None,
         help=(
-            "Path to a per-voxel weight NIfTI map for the L1 sparsity penalty in "
-            "multivariate mode (--group > 0). Adaptive-LASSO style: the effective "
-            "threshold is lambda/w per voxel, so higher weights penalize less "
-            "(retain more activity) and lower weights penalize more. Values must "
-            "be strictly positive."
+            "Path to a per-voxel weight NIfTI map (in the data's space) for the "
+            "multivariate (L2,1 + L1 mixed-norm) penalty in multivariate mode "
+            "(--group > 0). Adaptive-LASSO style: the effective threshold is "
+            "lambda/w per voxel, so higher weights penalize less (retain more "
+            "activity) and lower weights penalize more. Values must be finite "
+            "and strictly positive."
         ),
     )
 

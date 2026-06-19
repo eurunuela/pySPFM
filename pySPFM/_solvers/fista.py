@@ -218,8 +218,7 @@ def fista(
         weights mean less penalty (more activity retained); lower weights mean
         more penalty. Weights must be finite and strictly positive; ``w_j = 1``
         is neutral. Only supported for the multivariate FISTA path (not pylops).
-        By default
-        None (no weighting).
+        By default None (no weighting).
 
     Returns
     -------
